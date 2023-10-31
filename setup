@@ -1,0 +1,40 @@
+#!/usr/bin/bash
+
+################################################################################
+# This script is written by Pavel Bashtrykov
+# pavel.bashtrykov@ibtb.uni-stuttgart.de
+# pavel.bashtrykov@gmail.com
+################################################################################
+
+logo(){
+  echo "
+######################################################################
+#                             RepEnTools                             #
+######################################################################"
+}
+
+help() {
+  printf '\nUsage: setup [-h]\n'
+  echo '
+  Open the RepEnTools directory and run setup command
+  Adds the RepEnTools directory to enviromental variables as $REPENTOOLS_DIR
+  Changes permission of the files in the directory
+  Downloads adapters for Trimmomatic, adds an environmental variable $ADAPTERS
+  '
+}
+
+OPTIND=1
+while getopts ":h" option; do
+  case "${option}" in
+    h ) help; exit;;
+    *  ) echo "Unimplemented option: -$option" >&2; help; exit 1;;
+  esac
+done
+
+REPENTOOLS_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+echo "export REPENTOOLS_DIR=$REPENTOOLS_DIR" >> ~/.bashrc
+echo 'export PATH="$REPENTOOLS_DIR:$PATH"' >> ~/.bashrc
+wget -O TruSeq3-PE.fa "https://raw.githubusercontent.com/usadellab/Trimmomatic/main/adapters/TruSeq3-PE.fa"
+echo "export ADAPTERS=$REPENTOOLS_DIR" >> ~/.bashrc
+source ~/.bashrc
+chmod +rwx -R $REPENTOOLS_DIR

@@ -1,0 +1,225 @@
+#!/usr/bin/bash -i
+
+################################################################################
+# This script is written by Pavel Bashtrykov
+# pavel.bashtrykov@ibtb.uni-stuttgart.de
+# pavel.bashtrykov@gmail.com
+################################################################################
+
+source ~/miniconda3/etc/profile.d/conda.sh
+MAIN_DIR=$(pwd)
+CORES=2
+LIB_SIZE=( 500 500 500 500 )
+PREFIXES=( Rep1_input Rep2_input Rep1_ChIP Rep2_ChIP )
+
+logo(){
+  echo "
+################################################################################
+#                                  RepEnTools                                  #
+################################################################################"
+}
+
+qc(){
+  printf "\n######################################################################\n"
+  printf "FastQC ...\n\n"
+  conda activate fastqc0.12.1
+  for i in "${!PREFIXES[@]}"; do 
+    fastqc -t $CORES ${SAMPLES_PATH}/${PREFIXES[i]}_R1.fq.gz ${SAMPLES_PATH}/${PREFIXES[i]}_R2.fq.gz --outdir=./
+    printf "\n"
+  done 
+  conda deactivate
+  
+  printf "\n######################################################################\n"
+  printf "TRIMMING ...\n\n"
+  conda activate trimmomatic0.38
+  for i in "${!PREFIXES[@]}"; do
+    trimmomatic\
+      PE -threads $CORES ${SAMPLES_PATH}/${PREFIXES[i]}_R1.fq.gz ${SAMPLES_PATH}/${PREFIXES[i]}_R2.fq.gz\
+      ${PREFIXES[i]}_R1_trimmed.fq.gz ${PREFIXES[i]}_output_forward_unpaired.fq.gz\
+      ${PREFIXES[i]}_R2_trimmed.fq.gz ${PREFIXES[i]}_output_reverse_unpaired.fq.gz\
+      ILLUMINACLIP:${ADAPTERS}/TruSeq3-PE.fa:2:30:10:8:true\
+      SLIDINGWINDOW:4:20 2>&1 | tee ${PREFIXES[i]}_trimmomatic.log;
+    printf "\n"
+  done
+  conda deactivate
+
+  printf "\n######################################################################\n"
+  printf "POST TRIMMING FastQC ...\n\n"
+  conda activate fastqc0.12.1
+  for i in "${!PREFIXES[@]}"; do
+    fastqc -t $CORES ${PREFIXES[i]}_R1_trimmed.fq.gz ${PREFIXES[i]}_R2_trimmed.fq.gz;
+    printf "\n"
+  done 
+  conda deactivate  
+}
+
+mapping(){
+  printf "\n######################################################################\n"
+  printf "MAPPING READS TO REFERENCE GENOME ...\n\n"
+  
+  conda activate hisat2.2.1
+  for i in "${!PREFIXES[@]}"; do
+    printf "Mapping sample %s: insert_size %s\n" "${PREFIXES[i]}" "${LIB_SIZE[i]}"
+    hisat2 -x chm13-2 -1 ${PREFIXES[i]}_R1_trimmed.fq.gz -2 ${PREFIXES[i]}_R2_trimmed.fq.gz\
+      --threads $CORES\
+      --no-spliced-alignment\
+      --maxins ${LIB_SIZE[i]}\
+      --non-deterministic\
+      --no-unal\
+      --omit-sec-seq\
+      2> ${PREFIXES[i]}_hisat2_summary.txt\
+    | samtools sort -@ $CORES -l 0 -O bam\
+    | samtools view -O bam -@ $CORES -o ${PREFIXES[i]}.bam
+
+    samtools index -@ $CORES ${PREFIXES[i]}.bam
+    samtools flagstat -@ $CORES ${PREFIXES[i]}.bam > ${PREFIXES[i]}_flagstat.txt
+    samtools idxstats ${PREFIXES[i]}.bam > ${PREFIXES[i]}_idxstats.txt;
+    printf "\n"
+  done
+  conda deactivate
+}
+
+enrichment(){
+  printf "\n######################################################################\n"
+  printf "COMPUTING FEATURE ENRICHMENT ...\n\n"
+  conda activate subread2.0.1
+  filename="$(basename -- ${GTF_FILE_PATH})"
+  TAG=${filename%.*}
+  featureCounts -T $CORES -M -O --primary -s 0\
+    --tmpDir ${MAIN_DIR}\
+    -a ${GTF_FILE_PATH}\
+    -t exon\
+    -g gene_id\
+    -o ${MAIN_DIR}/${TAG}_multiple_feature_counts.txt\
+    --extraAttributes transcript_id\
+    $(ls *.bam)
+  conda deactivate
+
+  conda activate py3.11
+  python ${REPENTOOLS_DIR}/compute_enrichment.py\
+   --report ${MAIN_DIR}/${TAG}_multiple_feature_counts.txt\
+   --summary ${MAIN_DIR}/${TAG}_multiple_feature_counts.txt.summary\
+   --get
+  python ${REPENTOOLS_DIR}/plot_enrichment.py\
+   --report ${MAIN_DIR}/ret_report.csv
+  conda deactivate
+  rm ${MAIN_DIR}/${TAG}_multiple_feature_counts.txt
+
+  printf "\nCOMPLETED.\n"
+  printf "\n######################################################################\n"
+}
+
+demo(){
+  printf "Running in a demo mode ...\n\n"
+
+  if [ -z "${HISAT2_INDEXES}" ]
+  then
+    echo "HISAT2_INDEXES path is not found in environment variables" >&2
+    echo "Terminating..." >&2
+    exit 1
+  elif [ -z "${GTF_FILE_PATH}" ]
+  then
+    echo "GTF_FILE_PATH is not found in environment variables" >&2
+    echo "Terminating..." >&2
+    exit 1
+  elif [ -z "${REPEN_DEMO_DATA}" ]
+  then
+    echo "REPEN_DEMO_DATA is not found in environment variables" >&2
+    echo "Terminating..." >&2
+    exit 1
+  else
+    LIB_SIZE=( 560 450 730 590 )
+    SAMPLES_PATH=${REPEN_DEMO_DATA}
+    qc
+    mapping
+    enrichment
+  fi
+}
+
+help() {
+  printf '\nUsage: rp -s <STR> -l <"INT;INT;INT;INT"> -g <STR> -n <STR> -p <INT> [-d] [-h] \n\n'
+  echo '
+  -s <STR>                  /path/to/samples
+  -l <"INT;INT;INT;INT">    default: "500;500;500;500"  
+                            Library sizes in the following order: Rep1_input Rep2_input Rep1_ChIP Rep2_ChIP
+  -g <STR>                  /path/to/rmsk.gtf
+                            If it is not added to ENVIRONMENT VARIABLES
+  -n <STR>                  /path/to/hista2/indexes
+                            If it is not added to ENVIRONMENT VARIABLES
+  -p <INT>                  e.g. 4, number of processors to use, default: 2
+  -d                        Runs analysis with the demo data. To get data run command: getdata
+  -h                        Prints help info
+
+
+  ============================================
+  Samples should be named following the scheme:
+
+  Rep1_input_R1.fq.gz
+  Rep1_input_R2.fq.gz
+  Rep2_input_R1.fq.gz
+  Rep2_input_R2.fq.gz
+  Rep1_ChIP_R1.fq.gz
+  Rep1_ChIP_R2.fq.gz
+  Rep2_ChIP_R1.fq.gz
+  Rep2_ChIP_R2.fq.gz 
+'
+}
+
+
+logo
+OPTIND=1
+while getopts ":s:l:g:n:p:hd" option; do
+  case "${option}" in
+    s ) SAMPLES_PATH=${OPTARG} ;;
+    l ) IFS=';' read -r -a LIB_SIZE <<< ${OPTARG} ;;
+    g ) GTF_FILE_PATH=${OPTARG} ;;
+    n ) HISAT2_INDEXES=${OPTARG} ;;
+    p ) CORES=${OPTARG} ;;
+    h ) help; exit;;
+    d ) demo=true;;
+    \? ) echo "Unknown option: -${OPTARG}" >&2; help; exit 1;;
+    :  ) echo "Missing option argument for -${OPTARG}" >&2; help; exit 1;;
+    *  ) echo "Unimplemented option: -$option" >&2; help; exit 1;;
+  esac
+done
+
+if ((OPTIND == 1))
+then
+    echo "No options specified. Terminating..." >&2
+    help; exit 1
+fi
+
+# shift $((OPTIND - 1))
+
+if [ ! -z "${demo}" ]
+then
+  demo
+  exit
+elif [ -z "${demo}" ]
+then
+  if [ -z "$SAMPLES_PATH" ]
+  then
+    echo 'Path to samples is missing. Use: -s <STR>' >&2
+    help
+    exit 1
+  elif [ -z "${HISAT2_INDEXES}" ]
+  then
+    echo "Path to HISAT2_INDEXES is not found. Use: -n <STR>" >&2
+    help
+    exit 1
+  elif [ -z "${GTF_FILE_PATH}" ]
+  then
+    echo "Path to GTF file is not given. Use: -g <STR>" >&2
+    help
+    exit 1
+  else
+    printf "ANALYSING DATA ...\n\n"
+    if [[ "${SAMPLES_PATH: -1}" == "/" ]]
+    then 
+      SAMPLES_PATH="${SAMPLES_PATH::-1}"
+    fi
+    qc
+    mapping
+    enrichment
+  fi
+fi

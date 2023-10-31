@@ -1,0 +1,119 @@
+#!/usr/bin/bash
+
+################################################################################
+# This script is written by Pavel Bashtrykov
+# pavel.bashtrykov@ibtb.uni-stuttgart.de
+# pavel.bashtrykov@gmail.com
+################################################################################
+
+MAIN_DIR=$(pwd)
+
+logo(){
+  echo "
+######################################################################
+#                             RepEnTools                             #
+######################################################################"
+}
+
+logo
+type -P unzip &> /dev/null
+
+if  [[ $? == 1 ]]; then
+  sudo apt-get install unzip
+fi
+
+help(){
+  printf "\nUsage:\n"
+  echo "
+  getdata -a            Saves all three datasets in a current working directory
+  getdata -r <STR>      /path/to/save/repen_demo_data
+  getdata -i <STR>      /path/to/save/hisat2_genome_indexes
+  getdata -g <STR>      /path/to/save/gtf_file
+  getdata -h            Prints help message
+"
+}
+
+get_hisat_genome_index(){
+  printf "\nDownloading hisat2 genome index ...\n"
+  printf "Files will be saved into: $HISAT2_INDEXES\n"
+  cd $HISAT2_INDEXES
+  wget -c https://figshare.com/ndownloader/articles/24175233/versions/2
+  unzip 2
+  rm -R 2
+  folder=$(pwd)
+  echo "export HISAT2_INDEXES=$folder" >> ~/.bashrc
+  cd $MAIN_DIR
+  printf "\nCompleted.\n\n"
+}
+
+get_demo_data(){
+  printf "\nDownloading demo data ...\n"
+  printf "Files will be saved into: $REPEN_DEMO_DATA\n"
+  cd $REPEN_DEMO_DATA
+  wget -c https://figshare.com/ndownloader/articles/24166071/versions/1
+  unzip 1
+  rm -R 1
+  folder=$(pwd)
+  echo "export REPEN_DEMO_DATA=$folder" >> ~/.bashrc
+  cd $MAIN_DIR
+  printf "\nCompleted.\n\n"
+}
+
+get_gtf_file(){
+  printf "\nDownloading gtf file ...\n"
+  printf "File will be saved into: $GTF_FILE_PATH\n"
+  cd $GTF_FILE_PATH
+  wget -c https://figshare.com/ndownloader/files/42429120
+  mv 42429120 rmsk.gtf.gz
+  gzip -d rmsk.gtf.gz
+  folder=$(pwd)
+  echo "export GTF_FILE_PATH=${folder}/rmsk.gtf" >> ~/.bashrc
+  cd $MAIN_DIR
+  printf "\nCompleted.\n\n"
+}
+
+OPTIND=1
+while getopts ':r:i:g:ha' option
+do
+  case "$option" in
+    r ) DATA="$OPTARG";;
+    i ) INDEXES="$OPTARG";;
+    g ) GTF="$OPTARG";;
+    h ) help; exit;;
+    a ) all=true;;
+    \? ) echo "Unknown option: -$OPTARG" >&2; help; exit 1;;
+    : ) echo "Missing option argument for -$OPTARG" >&2; help; exit 1;;
+    * ) echo "Unimplemented option: -$option" >&2; help; exit 1;;
+  esac
+done
+
+if ((OPTIND == 1))
+then
+  printf "\nNo options specified. Terminating...\n\n"
+  help
+  exit 1
+elif [ "$all" = true ]
+then
+  REPEN_DEMO_DATA=${MAIN_DIR}
+  HISAT2_INDEXES=${MAIN_DIR}
+  GTF_FILE_PATH=${MAIN_DIR}
+
+  get_hisat_genome_index
+  get_demo_data
+  get_gtf_file
+  exit
+fi
+
+if [ ! -z "${INDEXES}" ]
+then
+  HISAT2_INDEXES=${INDEXES}
+  get_hisat_genome_index
+elif [ ! -z "${DATA}" ]
+then
+  REPEN_DEMO_DATA=${DATA}
+  get_demo_data
+elif [ ! -z "${GTF}" ]
+then
+  GTF_FILE_PATH=${GTF}
+  get_gtf_file
+fi

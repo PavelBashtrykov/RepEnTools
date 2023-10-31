@@ -1,0 +1,83 @@
+#!/usr/bin/bash
+
+################################################################################
+# This script is written by Pavel Bashtrykov
+# pavel.bashtrykov@ibtb.uni-stuttgart.de
+# pavel.bashtrykov@gmail.com
+################################################################################
+
+logo(){
+  echo "
+######################################################################
+#                             RepEnTools                             #
+######################################################################"
+}
+
+help() {
+  printf '\nUsage: installation [-h]\n'
+  echo '
+  Installs 
+  - miniconda3 (if not installed)
+  - fastqc
+  - trimmomatic
+  - hisat2
+  - samtools
+  - subread
+  - python 3.11, seaborn, pandas, scipy
+  '
+}
+
+install_conda(){
+    printf "############################################################"
+    echo "Installing conda..."
+    mkdir -p ~/miniconda3
+    wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda3/miniconda.sh
+    bash ~/miniconda3/miniconda.sh -b -u -p ~/miniconda3
+    rm -rf ~/miniconda3/miniconda.sh
+    ~/miniconda3/bin/conda init bash
+    ~/miniconda3/bin/conda init zsh
+}
+
+logo
+while getopts ":h" option; do
+  case "${option}" in
+    h ) help; exit;;
+    *  ) echo "Unimplemented option: -$option" >&2; help; exit 1;;
+  esac
+done
+
+type -P conda &> /dev/null
+
+if  [[ $? == 1 ]]; then
+    install_conda
+else
+    echo "conda is found"
+fi
+
+source ~/miniconda3/etc/profile.d/conda.sh
+conda config --add channels defaults
+conda config --add channels bioconda
+conda config --add channels conda-forge
+conda config --set channel_priority strict
+
+
+#---------------------------------------------------------------------------------
+# FastQC
+CONDA_ENV_NAME="fastqc0.12.1"
+conda create -n $CONDA_ENV_NAME -y fastqc=0.12.1
+
+# Trimmomatic
+CONDA_ENV_NAME="trimmomatic0.38"
+conda create -n $CONDA_ENV_NAME -y trimmomatic=0.38
+
+# Hisat2
+CONDA_ENV_NAME="hisat2.2.1"
+conda create -n $CONDA_ENV_NAME -y hisat2=2.2.1 samtools=1.15.1
+
+# Subread
+CONDA_ENV_NAME="subread2.0.1"
+conda create -n $CONDA_ENV_NAME -y subread=2.0.1
+
+# python
+CONDA_ENV_NAME="py3.11"
+conda create -n $CONDA_ENV_NAME -y python=3.11.3 pandas seaborn scipy

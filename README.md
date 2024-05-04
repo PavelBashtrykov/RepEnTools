@@ -1,8 +1,23 @@
 # RepEnTools
 
-## 0. What is RepEnTools?
+- [RepEnTools](#repentools)
+  - [What is RepEnTools?](#what-is-repentools)
+  - [1. Auto-installing RepEnTools](#1-auto-installing-repentools)
+  - [2. Downloading necessary data](#2-downloading-necessary-data)
+  - [3. Analysing data with RepEnTools (demo \& basic mode)](#3-analysing-data-with-repentools-demo--basic-mode)
+    - [Demo mode](#demo-mode)
+    - [Analysing your own ChIP-seq data (basic)](#analysing-your-own-chip-seq-data-basic)
+  - [4. Analysing data with RepEnTools (advanced \& expert)](#4-analysing-data-with-repentools-advanced--expert)
+    - [Advanced analysis](#advanced-analysis)
+    - [Expert analysis](#expert-analysis)
+  - [5. How RepEnTools analysis works](#5-how-repentools-analysis-works)
+  - [6. Troubleshooting](#6-troubleshooting)
+  - [Contributions](#contributions)
 
-RepEnTools is a software package for genome-wide repeat element (RE) enrichment analysis in ChIP-seq data or similar. It is very easily accessible, with fully automated installation and analysis workflows. It can be run on commodity hardware, even by first-time UNIX users. RepEnTools provide rapid, efficient, and accurate analyses by leveraging new tools, meticulously validated settings and key functions (publication(LINK)). 
+
+## What is RepEnTools?
+
+RepEnTools is a software package for genome-wide repeat element (RE) enrichment analysis in ChIP-seq data or similar. It is very easily accessible, with fully automated installation and analysis workflows. It can be run on commodity hardware, even by first-time UNIX users. RepEnTools provides rapid, efficient, and accurate analyses by leveraging new tools, meticulously validated settings and key functions. For more details read [Choudalakis et al., 2024](https://mobilednajournal.biomedcentral.com/articles/10.1186/s13100-024-00315-y).  
 
 With RepEnTools you can find reproducible RE enrichments & depletions in ChIP-seq data from human samples. All you need are:
 - FASTQ files from two replicates of the pull-down and their inputs, 
@@ -14,7 +29,7 @@ With RepEnTools you can find reproducible RE enrichments & depletions in ChIP-se
 </picture>
 
 
-RepEnTools uses our custom-made bash scripts to retrieve and auto-install publically available bioinformatics software (`setup`, `installation`), download human reference files (`getdata`) and perform the RepEnTools analyses (`ret`). Within the latter, table operations, plot generation and some other tasks are performed by our custom-made Python scripts `compute_enrichment` and `plot_enrichment`.
+RepEnTools uses our custom-made bash scripts to retrieve and auto-install publically available bioinformatics software (`setup`, `installation`), download human reference files (`getdata`) and perform the RepEnTools analyses (`ret`). Within the latter, table operations, plot generation and some other tasks are performed by our custom-made Python scripts `compute_enrichment` and `plot_enrichment`. Package and environment management are performed via `miniconda3`.
 
 ## 1. Auto-installing RepEnTools
 
@@ -35,7 +50,7 @@ bash setup
 source ~/.bashrc
 ```  
 
-- Run a script to install required tools (uses `conda` for package and environment management)
+- Run a script to install required tools (uses `miniconda3` for package and environment management)
 
 ```
 installation
@@ -124,7 +139,7 @@ Usage:  ret -s STR -l "INT;INT;INT;INT" -g STR -n STR -p INT [-d] [-h]
  Command | Description
  :--- | :--- 
   `-s` |input /path/to/samples  
-  `-l` |"Max insert sizes (see paper(LINK))"  # default: "500;500;500;500" Library sizes in the following order: Rep1_input Rep2_input Rep1_ChIP Rep2_ChIP # e.g. "590;400;450;390" for UHRF1-TTD CIDOP    
+  `-l` |"Max insert sizes (see [Choudalakis et al., 2024](https://mobilednajournal.biomedcentral.com/articles/10.1186/s13100-024-00315-y) Supp. Fig. S1)"  # default: "500;500;500;500" Library sizes in the following order: Rep1_input Rep2_input Rep1_ChIP Rep2_ChIP # e.g. "590;400;450;390" for UHRF1-TTD CIDOP    
   `-g` |/path/to/rmsk.gtf  # If it is not added to ENVIRONMENT VARIABLES  
   `-n` |/path/to/hisat2/indexes # If it is not added to ENVIRONMENT VARIABLES  
   `-p` |INT; number of processors to use, default: 2 # e.g. 4   
@@ -178,10 +193,10 @@ RepEnTools uses FASTQ files from two replicates of chromatin pulldown experiment
 
 Next, RepEnTools activates our Python scripts to process the data, leveraging five packages (see python_requirements.txt). 
 
-First, `compute_enrichment.py` normalises the read-counts to the size of the corresponding library using pseudocounts for zero reads, and calculates enrichment as ChIP over input. Then, from the two replicates, we calculate averages, the Z-score and corresponding p-value to determine enrichment and depletion statistics (see paper(LINK)), as well as FDR (BH-adjusted p-values) for the 15744 REs used in the volcano plot. The processing is saved in the temporary rmsk_multiple_feature_counts.txt. Finally, it generates the files  
+First, `compute_enrichment.py` normalises the read-counts to the size of the corresponding library using pseudocounts for zero reads, and calculates enrichment as ChIP over input. Then, from the two replicates, we calculate averages, the Z-score and corresponding p-value to determine enrichment and depletion statistics (see [Choudalakis et al., 2024](https://mobilednajournal.biomedcentral.com/articles/10.1186/s13100-024-00315-y)), as well as FDR (BH-adjusted p-values) for the 15744 REs used in the volcano plot. The processing is saved in the temporary rmsk_multiple_feature_counts.txt. Finally, it generates the files  
 - ret_experiment_summary.csv, which shows the fraction of ChIP or Input reads on rmsk and the rmsk-wide enrichment of ChIP/Input
 - the ret_report.csv, which contains all the data
-- the ret_report_ChIP.csv, which is filtered to only contain the well-reproducible, well-defined, and annotated families of REs (i.e. without Simple_repeat, Low_complexity, tRNA, Unknown). For more details read the FAQ.md and our paper (LINK).  
+- the ret_report_ChIP.csv, which is filtered to only contain the well-reproducible, well-defined, and annotated families of REs (i.e. without Simple_repeat, Low_complexity, tRNA, Unknown). For more details read the FAQ.md and our paper ([Choudalakis et al., 2024](https://mobilednajournal.biomedcentral.com/articles/10.1186/s13100-024-00315-y)).  
 
 <img title="Unix_workflow" style="float:right;margin:20px 20 20 600px" id="Unix_workflow" src="images/RepEnTools_UNIX-Workflow.png" >  
 
@@ -195,6 +210,14 @@ Your analysis with RepEnTools is now complete, and you should check the FASTQC a
 - If the path to RepEnTools' default reference directories needs adjustment, then run nano ~/.bashrc, scroll to the end of the text, adjust the directory names, save by pressing ctrl+X,Y, and run $ source ~/.bashrc.
 
 - If you get the error "Permission denied", then run the setup and source commands.
+
+- We have now (05/2024) updated the shell scripts to convert all CRLF to LF. In systems without users you may need to change the scripts from usr/bin/bash to bin/bash.
+
+- Expert users: You may wish to hard-code using all (or less) CPU threads by changing CORES=2 to `CORES=$(nproc --all)-INT` for INT=0,1,2... We use this on the *dedicated* commodity desktop machine to commit *ALL* resources.
+
+- Expert users: The scripts can be modified for modular usage, including mapping multiple samples, mapping SE datasets, changing mapping settings etc. On our testing commodity desktop machine, the computations run as fast as on usegalaxy.eu. 
+
+- Expert analysis: the aggregated rmsk_multiple_feature_counts.txt you create must have the correct header (1st line). See exemplary file.
 
 ## Contributions
 - MC designed the RepEnTools analysis and the pipeline
